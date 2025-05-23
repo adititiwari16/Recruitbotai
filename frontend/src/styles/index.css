@@ -1,0 +1,156 @@
+/* Import Bootstrap icons */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css');
+
+/* General styling */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+}
+
+/* Custom properties in HSL format */
+:root {
+  --primary-color: 210 100% 50%; /* #0d6efd */
+  --secondary-color: 208 7% 46%; /* #6c757d */
+  --success-color: 152 69% 31%; /* #198754 */
+  --danger-color: 354 70% 54%; /* #dc3545 */
+  --warning-color: 45 100% 51%; /* #ffc107 */
+  --info-color: 190 90% 50%; /* #0dcaf0 */
+  --light-color: 210 17% 98%; /* #f8f9fa */
+  --dark-color: 210 11% 15%; /* #212529 */
+}
+
+/* Animation for recording indicator */
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.blink {
+  animation: blink 1.5s linear infinite;
+  display: inline-block;
+  margin-right: 5px;
+  color: red;
+}
+
+/* Card styling */
+.card {
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  border-top-left-radius: 0.5rem !important;
+  border-top-right-radius: 0.5rem !important;
+}
+
+/* Button styling */
+.btn {
+  border-radius: 0.3rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress bar styling */
+.progress {
+  height: 0.8rem;
+  border-radius: 1rem;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar {
+  border-radius: 1rem;
+}
+
+/* Form control styling */
+.form-control, .form-select {
+  border-radius: 0.3rem;
+  padding: 0.5rem 0.75rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus, .form-select:focus {
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* List group styling */
+.list-group-item.active {
+  background-color: rgba(13, 110, 253, 0.1);
+  border-color: rgba(13, 110, 253, 0.5);
+  color: var(--bs-primary);
+}
+
+/* Video recorder styling */
+.video-container video {
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Markdown content styling */
+.markdown-content {
+  line-height: 1.7;
+}
+
+.markdown-content h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.markdown-content h2 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.2rem;
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content p {
+  margin-bottom: 1rem;
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.3rem;
+}
+
+.markdown-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.2rem;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid var(--bs-primary);
+  padding-left: 1rem;
+  margin-left: 0;
+  color: var(--bs-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
