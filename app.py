@@ -1,182 +1,19 @@
 import os
 import json
 import logging
-from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Initialize the app
-app = Flask(__name__)
+app = Flask(__name__, static_folder='./frontend/dist')
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
 # Enable CORS
 CORS(app)
-
-# Database setup
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
-
-# Configure the database
-database_url = os.environ.get("DATABASE_URL")
-# Fix for SQLAlchemy URL format if coming from Supabase
-if database_url and database_url.startswith("https://"):
-    database_url = database_url.replace("https://", "postgresql://", 1)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# Initialize the database
-db.init_app(app)
-
-# Define database models
-class User(db.Model):
-    __tablename__ = 'users'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    age = db.Column(db.Integer, nullable=True)
-    experience = db.Column(db.Integer, nullable=True)
-    job_title = db.Column(db.String(120), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationship with interviews
-    interviews = db.relationship('Interview', backref='user', lazy=True)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'email': self.email,
-            'age': self.age,
-            'experience': self.experience,
-            'job_title': self.job_title,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-class Interview(db.Model):
-    __tablename__ = 'interviews'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    role = db.Column(db.String(120), nullable=False)
-    experience_level = db.Column(db.String(50), nullable=False)
-    score = db.Column(db.Float, nullable=True)
-    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
-    feedback = db.Column(db.Text, nullable=True)
-    report = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    
-    # Relationship with questions
-    questions = db.relationship('Question', backref='interview', lazy=True)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'role': self.role,
-            'experience_level': self.experience_level,
-            'score': self.score,
-            'status': self.status,
-            'feedback': self.feedback,
-            'report': self.report,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None
-        }
-
-class Question(db.Model):
-    __tablename__ = 'questions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    interview_id = db.Column(db.Integer, db.ForeignKey('interviews.id'), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    order = db.Column(db.Integer, nullable=False)
-    answer = db.Column(db.Text, nullable=True)
-    score = db.Column(db.Float, nullable=True)
-    feedback = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'interview_id': self.interview_id,
-            'text': self.text,
-            'order': self.order,
-            'answer': self.answer,
-            'score': self.score,
-            'feedback': self.feedback,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-# Create all database tables
-with app.app_context():
-    db.create_all()
-
-# API Routes
-@app.route('/api/users/register', methods=['POST'])
-def register_user():
-    """Register a new user or update existing user."""
-    try:
-        data = request.json
-        
-        # Validate required fields
-        if not all(key in data for key in ['name', 'email']):
-            return jsonify({"error": "Name and email are required"}), 400
-        
-        # Check if user already exists
-        existing_user = User.query.filter_by(email=data['email']).first()
-        
-        if existing_user:
-            # Update existing user
-            existing_user.name = data.get('name', existing_user.name)
-            existing_user.age = data.get('age', existing_user.age)
-            existing_user.experience = data.get('experience', existing_user.experience)
-            existing_user.job_title = data.get('job_title', existing_user.job_title)
-            
-            db.session.commit()
-            
-            return jsonify({
-                "message": "User updated successfully",
-                "user": existing_user.to_dict()
-            }), 200
-        else:
-            # Create new user
-            new_user = User(
-                name=data['name'],
-                email=data['email'],
-                age=data.get('age'),
-                experience=data.get('experience'),
-                job_title=data.get('job_title')
-            )
-            
-            db.session.add(new_user)
-            db.session.commit()
-            
-            return jsonify({
-                "message": "User registered successfully",
-                "user": new_user.to_dict()
-            }), 201
-            
-    except Exception as e:
-        logger.error(f"Error in register_user: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/query/ask', methods=['POST'])
 def ask_question():
@@ -207,7 +44,6 @@ def ask_question():
         logger.info(f"Processing query: {query}")
         
         # Generate a sample markdown response for demonstration
-        # In a real application, you would use an AI model here
         response_text = generate_sample_response(query, context)
         
         # Return the response
@@ -347,6 +183,14 @@ Would you like more specific information about any aspect of the interview proce
 *This response was generated to demonstrate the markdown formatting capabilities. In a production environment, this would be replaced with an actual AI-generated response tailored to your query.*
 """
 
-# Run the application
+# Serve the demo from the static folder
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join('static', path)):
+        return send_from_directory('static', path)
+    else:
+        return send_from_directory('static', 'index.html')
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

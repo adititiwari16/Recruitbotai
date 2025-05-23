@@ -10,7 +10,11 @@ function QueryAssistant() {
   // Function to send query to the API
   const sendQuery = async (question, context = '') => {
     try {
-      const response = await fetch('/api/query/ask', {
+      // Use the full URL including hostname and port
+      const apiUrl = 'http://localhost:5000/api/query/ask';
+      console.log(`Sending query to ${apiUrl}:`, question);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -26,6 +30,7 @@ function QueryAssistant() {
       }
       
       const data = await response.json();
+      console.log('Received response:', data);
       return data.response;
     } catch (error) {
       console.error('Error querying API:', error);
