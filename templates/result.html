@@ -13,7 +13,7 @@
                 <!-- Basic information -->
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h4>{{ interview.job_role }} Position</h4>
+                        <h4>{{ interview.role }} Position</h4>
                         
                         {% if interview.result == 'pass' %}
                             <span class="badge bg-success fs-5">PASS</span>
@@ -47,7 +47,7 @@
                 <div class="mb-4">
                     <h4>Summary</h4>
                     <div class="markdown-content">
-                        <div id="summary-content"></div>
+                        <div id="feedback-content"></div>
                     </div>
                 </div>
                 
@@ -90,12 +90,13 @@
         const downloadReportBtn = document.getElementById('downloadReportBtn');
         
         // Parse and render the markdown content
-        if (summaryContent) {
-            summaryContent.innerHTML = marked.parse(`{{ interview.summary|safe }}`);
+        const feedbackContent = document.getElementById('feedback-content');
+        if (feedbackContent) {
+            feedbackContent.innerHTML = marked.parse(`{{ interview.feedback|safe }}`);
         }
         
         if (reportContent) {
-            reportContent.innerHTML = marked.parse(`{{ interview.evaluation_report|safe }}`);
+            reportContent.innerHTML = marked.parse(`{{ interview.report|safe }}`);
         }
         
         // Function to download the report as PDF

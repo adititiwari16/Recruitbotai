@@ -48,7 +48,8 @@ class Interview(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    job_role = db.Column(db.String(100), nullable=False)  # e.g., "SDE", "Frontend Developer"
+    role = db.Column(db.String(100), nullable=False)  # e.g., "SDE", "Frontend Developer"
+    experience_level = db.Column(db.String(50), default='mid')  # 'entry', 'mid', 'senior'
     
     # Interview status
     status = db.Column(db.String(20), default='pending')  # 'pending', 'in_progress', 'completed'
@@ -56,8 +57,8 @@ class Interview(db.Model):
     
     # Evaluation data
     score = db.Column(db.Float)  # Overall score
-    summary = db.Column(db.Text)  # Summary report with strengths and weaknesses
-    evaluation_report = db.Column(db.Text)  # Detailed evaluation in markdown
+    feedback = db.Column(db.Text)  # Summary report with strengths and weaknesses
+    report = db.Column(db.Text)  # Detailed evaluation in markdown
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

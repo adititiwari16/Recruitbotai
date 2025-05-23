@@ -247,7 +247,8 @@ def interview_setup():
         # Create new interview
         interview = Interview(
             user_id=current_user.id,
-            job_role=JOB_ROLES[job_role],
+            role=JOB_ROLES[job_role],
+            experience_level='mid',
             status='in_progress'
         )
         
@@ -312,8 +313,8 @@ def complete_interview(interview_id):
     
     # Generate evaluation (this would use the LLM in production)
     evaluation = generate_evaluation_report(interview)
-    interview.evaluation_report = evaluation['report']
-    interview.summary = evaluation['summary']
+    interview.report = evaluation['report']
+    interview.feedback = evaluation['summary']
     interview.result = evaluation['result']
     interview.score = evaluation['score']
     
