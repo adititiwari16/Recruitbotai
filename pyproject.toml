@@ -15,4 +15,8 @@ dependencies = [
     "langchain-openai>=0.3.18",
     "langchain-community>=0.3.24",
     "sqlalchemy>=2.0.41",
+    "flask-dance>=7.1.0",
+    "flask-login>=0.6.3",
+    "oauthlib>=3.2.2",
+    "pyjwt>=2.10.1",
 ]

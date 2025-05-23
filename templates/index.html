@@ -1,210 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RecruitBot - AI Interview Assistant</title>
-    <!-- Bootstrap CSS from Replit theme -->
-    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
-    <!-- Marked for rendering markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <style>
-        .markdown-content {
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            background-color: var(--bs-dark);
-            border: 1px solid var(--bs-secondary);
-            margin-top: 1.5rem;
-        }
-        
-        .markdown-content h1 {
-            font-size: 1.8rem;
-            margin-bottom: 1rem;
-            color: var(--bs-light);
-        }
-        
-        .markdown-content h2 {
-            font-size: 1.5rem;
-            margin-top: 1.5rem;
-            color: var(--bs-light);
-        }
-        
-        .markdown-content h3 {
-            font-size: 1.25rem;
-            margin-top: 1.25rem;
-            color: var(--bs-info);
-        }
-        
-        .markdown-content p, .markdown-content li {
-            line-height: 1.6;
-        }
-        
-        .markdown-content ul {
-            padding-left: 1.5rem;
-        }
-        
-        .query-example {
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .query-example:hover {
-            transform: translateY(-2px);
-        }
-    </style>
-</head>
-<body data-bs-theme="dark">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <span class="text-info">Recruit</span><span class="text-light">Bot</span>
-            </a>
-            <span class="navbar-text">
-                AI-Powered Interview Assistant
-            </span>
-        </div>
-    </nav>
+{% extends 'layout.html' %}
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-8 offset-md-2">
-                <div class="card border-secondary">
-                    <div class="card-header bg-info text-dark">
-                        <h3 class="mb-0">Interview Query Assistant</h3>
-                    </div>
-                    <div class="card-body">
-                        <p class="lead">Ask questions about interviews, recruitment, or candidate evaluation and get AI-powered responses.</p>
-                        
-                        <form id="queryForm">
-                            <div class="mb-3">
-                                <label for="query" class="form-label">What would you like to know?</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="query" placeholder="E.g., What are good interview questions for a software developer?">
-                                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                                        <span id="submitText">Get Answer</span>
-                                        <div class="spinner-border spinner-border-sm d-none" id="spinner" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                        
-                        <div id="errorAlert" class="alert alert-danger d-none" role="alert">
-                            An error occurred while processing your request. Please try again.
-                        </div>
-                        
-                        <div id="responseContainer" class="d-none">
-                            <div class="markdown-content" id="responseContent"></div>
-                        </div>
-                        
-                        <div class="mt-4">
-                            <h5>Try asking about:</h5>
-                            <div class="row mt-3">
-                                <div class="col-md-4 mb-3">
-                                    <div class="card query-example bg-dark border-secondary h-100">
-                                        <div class="card-body">
-                                            <h5 class="card-title text-info">Interview Questions</h5>
-                                            <p class="card-text">What are good interview questions for a frontend developer?</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <div class="card query-example bg-dark border-secondary h-100">
-                                        <div class="card-body">
-                                            <h5 class="card-title text-info">Preparation Tips</h5>
-                                            <p class="card-text">How to prepare for a technical interview?</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <div class="card query-example bg-dark border-secondary h-100">
-                                        <div class="card-body">
-                                            <h5 class="card-title text-info">Candidate Evaluation</h5>
-                                            <p class="card-text">What are red flags to watch for in candidates?</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+{% block title %}RecruitBot - AI-Powered Technical Interviews{% endblock %}
+
+{% block content %}
+<div class="row align-items-center">
+    <div class="col-md-6">
+        <h1 class="display-4 mb-4"><span class="text-info">Recruit</span><span class="text-light">Bot</span></h1>
+        <h2 class="mb-4">AI-Powered Technical Interview Assessment</h2>
+        <p class="lead mb-4">
+            Experience the future of technical interviews with our advanced AI interviewer. Get fair, consistent, and thorough evaluations for technical roles.
+        </p>
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+            {% if current_user.is_authenticated %}
+                {% if current_user.role == 'recruiter' %}
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg px-4">
+                        <i class="fas fa-gauge-high me-2"></i> Go to Dashboard
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('interview_setup') }}" class="btn btn-primary btn-lg px-4">
+                        <i class="fas fa-laptop-code me-2"></i> Start Interview
+                    </a>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg px-4 me-md-2">
+                    <i class="fas fa-sign-in-alt me-2"></i> Login
+                </a>
+                <a href="{{ url_for('register') }}" class="btn btn-outline-secondary btn-lg px-4">
+                    <i class="fas fa-user-plus me-2"></i> Register
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6 d-none d-md-block">
+        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" class="img-fluid rounded-3 ms-5" alt="Technical Interview" style="max-width: 80%; opacity: 0.8; transform: rotate(5deg);">
+    </div>
+</div>
+
+<div class="row mt-5 pt-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-robot text-info fa-4x mb-3"></i>
+                <h3 class="card-title">AI-Powered Interviews</h3>
+                <p class="card-text">
+                    Our AI interviewer assesses technical competency across DSA, DCCN, OOP, OS, and coding skills with standardized questions.
+                </p>
             </div>
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const queryForm = document.getElementById('queryForm');
-            const queryInput = document.getElementById('query');
-            const submitBtn = document.getElementById('submitBtn');
-            const submitText = document.getElementById('submitText');
-            const spinner = document.getElementById('spinner');
-            const responseContainer = document.getElementById('responseContainer');
-            const responseContent = document.getElementById('responseContent');
-            const errorAlert = document.getElementById('errorAlert');
-            const queryExamples = document.querySelectorAll('.query-example');
-            
-            // Set up query examples
-            queryExamples.forEach(card => {
-                card.addEventListener('click', function() {
-                    const exampleText = this.querySelector('.card-text').textContent;
-                    queryInput.value = exampleText;
-                    queryInput.focus();
-                });
-            });
-            
-            // Handle form submission
-            queryForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const query = queryInput.value.trim();
-                if (!query) {
-                    return;
-                }
-                
-                // Show loading state
-                submitText.classList.add('d-none');
-                spinner.classList.remove('d-none');
-                submitBtn.disabled = true;
-                errorAlert.classList.add('d-none');
-                
-                try {
-                    const response = await fetch('/api/query/ask', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ 
-                            query: query
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    
-                    // Render markdown
-                    responseContent.innerHTML = marked.parse(data.response);
-                    responseContainer.classList.remove('d-none');
-                    
-                    // Scroll to response
-                    responseContainer.scrollIntoView({ behavior: 'smooth' });
-                    
-                } catch (error) {
-                    console.error('Error:', error);
-                    errorAlert.textContent = error.message || 'An error occurred. Please try again.';
-                    errorAlert.classList.remove('d-none');
-                } finally {
-                    // Reset button state
-                    submitText.classList.remove('d-none');
-                    spinner.classList.add('d-none');
-                    submitBtn.disabled = false;
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-clipboard-check text-info fa-4x mb-3"></i>
+                <h3 class="card-title">Comprehensive Evaluations</h3>
+                <p class="card-text">
+                    Get detailed reports with subject-wise performance analysis, strengths, weaknesses, and clear pass/fail recommendations.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line text-info fa-4x mb-3"></i>
+                <h3 class="card-title">Recruiter Dashboard</h3>
+                <p class="card-text">
+                    Recruiters can monitor all candidate assessments in one place with detailed analytics and downloadable reports.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

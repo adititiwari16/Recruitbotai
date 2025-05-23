@@ -1,0 +1,47 @@
+{% extends 'layout.html' %}
+
+{% block title %}Interview Setup - RecruitBot{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">Choose Your Interview Type</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">
+                    Select the job role you're applying for. We'll tailor the technical interview questions to match the requirements of this role.
+                </p>
+                
+                <form method="POST" action="{{ url_for('interview_setup') }}">
+                    <div class="mb-4">
+                        <label for="job_role" class="form-label">Job Role</label>
+                        <select class="form-select form-select-lg" id="job_role" name="job_role" required>
+                            <option value="" selected disabled>Choose a role...</option>
+                            {% for slug, name in job_roles.items() %}
+                                <option value="{{ slug }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle me-2"></i> What to expect</h5>
+                        <p class="mb-0">
+                            You'll be asked a series of 10 technical questions covering areas like data structures, algorithms, 
+                            OOP concepts, networks, and operating systems. The AI interviewer will evaluate your answers and 
+                            provide a detailed assessment at the end.
+                        </p>
+                    </div>
+                    
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play-circle me-2"></i> Start Interview
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
