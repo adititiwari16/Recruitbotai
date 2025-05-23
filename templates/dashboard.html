@@ -1,0 +1,164 @@
+{% extends 'layout.html' %}
+
+{% block title %}Recruiter Dashboard - RecruitBot{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="mb-3">Recruiter Dashboard</h2>
+        <p class="lead">View and manage all candidate interview results.</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Interviews</h5>
+                <p class="display-4">{{ interviews|length }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Pass Rate</h5>
+                {% set pass_count = interviews|selectattr('result', 'eq', 'pass')|list|length %}
+                {% set completed_count = interviews|selectattr('status', 'eq', 'completed')|list|length %}
+                <p class="display-4">
+                    {% if completed_count > 0 %}
+                        {{ "%.1f"|format((pass_count / completed_count) * 100) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Average Score</h5>
+                {% set scores = interviews|selectattr('status', 'eq', 'completed')|map(attribute='score')|list %}
+                <p class="display-4">
+                    {% if scores|length > 0 %}
+                        {{ "%.1f"|format(scores|sum / scores|length) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">Interview Results</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Candidate</th>
+                                <th>Position</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Result</th>
+                                <th>Score</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for interview in interviews %}
+                                {% set user = users[interview.user_id] if users and interview.user_id in users else None %}
+                                <tr>
+                                    <td>{{ interview.id }}</td>
+                                    <td>
+                                        {% if user %}
+                                            <strong>{{ user.name or 'N/A' }}</strong><br>
+                                            <small class="text-muted">{{ user.email }}</small>
+                                        {% else %}
+                                            <em>Unknown User</em>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ interview.job_role }}</td>
+                                    <td>
+                                        {% if interview.completed_at %}
+                                            {{ interview.completed_at.strftime('%Y-%m-%d') }}
+                                        {% elif interview.created_at %}
+                                            {{ interview.created_at.strftime('%Y-%m-%d') }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if interview.status == 'completed' %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% elif interview.status == 'in_progress' %}
+                                            <span class="badge bg-warning">In Progress</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if interview.status == 'completed' %}
+                                            {% if interview.result == 'pass' %}
+                                                <span class="badge bg-success">PASS</span>
+                                            {% elif interview.result == 'borderline' %}
+                                                <span class="badge bg-warning">BORDERLINE</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">FAIL</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-secondary">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if interview.score is not none %}
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar 
+                                                    {% if interview.score >= 70 %}bg-success
+                                                    {% elif interview.score >= 50 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    role="progressbar" 
+                                                    style="width: {{ interview.score }}%;"
+                                                    aria-valuenow="{{ interview.score }}" 
+                                                    aria-valuemin="0" 
+                                                    aria-valuemax="100">
+                                                    {{ "%.1f"|format(interview.score) }}%
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="badge bg-secondary">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if interview.status == 'completed' %}
+                                            <a href="{{ url_for('interview_result', interview_id=interview.id) }}" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-secondary" disabled>
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No interviews found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

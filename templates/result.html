@@ -1,0 +1,120 @@
+{% extends 'layout.html' %}
+
+{% block title %}Interview Results - RecruitBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">Technical Interview Results</h3>
+            </div>
+            <div class="card-body">
+                <!-- Basic information -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4>{{ interview.job_role }} Position</h4>
+                        
+                        {% if interview.result == 'pass' %}
+                            <span class="badge bg-success fs-5">PASS</span>
+                        {% elif interview.result == 'borderline' %}
+                            <span class="badge bg-warning fs-5">BORDERLINE</span>
+                        {% else %}
+                            <span class="badge bg-danger fs-5">FAIL</span>
+                        {% endif %}
+                    </div>
+                    
+                    <p class="text-muted">
+                        Completed on {{ interview.completed_at.strftime('%B %d, %Y at %I:%M %p') if interview.completed_at }}
+                    </p>
+                    
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar 
+                            {% if interview.score >= 70 %}bg-success
+                            {% elif interview.score >= 50 %}bg-warning
+                            {% else %}bg-danger{% endif %}" 
+                            role="progressbar" 
+                            style="width: {{ interview.score }}%;"
+                            aria-valuenow="{{ interview.score }}" 
+                            aria-valuemin="0" 
+                            aria-valuemax="100">
+                            {{ "%.1f"|format(interview.score) }}%
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Summary section -->
+                <div class="mb-4">
+                    <h4>Summary</h4>
+                    <div class="markdown-content">
+                        <div id="summary-content"></div>
+                    </div>
+                </div>
+                
+                <!-- Full report -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4>Detailed Evaluation</h4>
+                        
+                        <button class="btn btn-primary" id="downloadReportBtn">
+                            <i class="fas fa-download me-2"></i> Download Report
+                        </button>
+                    </div>
+                    
+                    <div class="markdown-content">
+                        <div id="report-content"></div>
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                    <a href="{{ url_for('interview_setup') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-redo me-2"></i> Take Another Interview
+                    </a>
+                    
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-home me-2"></i> Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const summaryContent = document.getElementById('summary-content');
+        const reportContent = document.getElementById('report-content');
+        const downloadReportBtn = document.getElementById('downloadReportBtn');
+        
+        // Parse and render the markdown content
+        if (summaryContent) {
+            summaryContent.innerHTML = marked.parse(`{{ interview.summary|safe }}`);
+        }
+        
+        if (reportContent) {
+            reportContent.innerHTML = marked.parse(`{{ interview.evaluation_report|safe }}`);
+        }
+        
+        // Function to download the report as PDF
+        downloadReportBtn.addEventListener('click', function() {
+            // In a real application, this would generate a PDF
+            // For this demo, we'll create a text file with the markdown content
+            
+            const reportText = `{{ interview.evaluation_report|safe }}`;
+            const blob = new Blob([reportText], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'interview_report_{{ interview.id }}.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    });
+</script>
+{% endblock %}
