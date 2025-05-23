@@ -104,7 +104,7 @@
             // In a real application, this would generate a PDF
             // For this demo, we'll create a text file with the markdown content
             
-            const reportText = `{{ interview.evaluation_report|safe }}`;
+            const reportText = `{{ interview.report|safe }}`;
             const blob = new Blob([reportText], { type: 'text/markdown' });
             const url = URL.createObjectURL(blob);
             
