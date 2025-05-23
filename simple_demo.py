@@ -1,19 +1,19 @@
 import os
 import json
 import logging
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
+from flask import Flask, request, jsonify, render_template, send_from_directory
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Initialize the app
-app = Flask(__name__, static_folder='static', static_url_path='')
+app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
-# Enable CORS
-CORS(app)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/api/query/ask', methods=['POST'])
 def ask_question():
@@ -183,17 +183,8 @@ Would you like more specific information about any aspect of the interview proce
 *This response was generated to demonstrate the markdown formatting capabilities. In a production environment, this would be replaced with an actual AI-generated response tailored to your query.*
 """
 
-# Serve the demo from the static folder
-@app.route('/')
-def index():
-    return send_from_directory('static', 'index.html')
-
-@app.route('/<path:path>')
-def serve_static(path):
-    if os.path.exists(os.path.join('static', path)):
-        return send_from_directory('static', path)
-    else:
-        return send_from_directory('static', 'index.html')
-
 if __name__ == '__main__':
+    # Ensure templates directory exists
+    os.makedirs('templates', exist_ok=True)
+    
     app.run(debug=True, host='0.0.0.0', port=5000)
