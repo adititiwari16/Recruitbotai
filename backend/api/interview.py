@@ -3,9 +3,9 @@ import json
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
-from app import db
-from models import User, Interview, Question
-from utils import generate_interview_questions, evaluate_answer, generate_final_report, format_markdown_report
+from backend.app import db
+from backend.models import User, Interview, Question
+from backend.utils import generate_interview_questions, evaluate_answer, generate_final_report, format_markdown_report
 
 # Initialize blueprint and logger
 interview_bp = Blueprint('interview', __name__)

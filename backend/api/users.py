@@ -1,8 +1,8 @@
 import logging
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
-from app import db
-from models import User
+from backend.app import db
+from backend.models import User
 
 # Initialize blueprint and logger
 users_bp = Blueprint('users', __name__)

@@ -5,7 +5,7 @@ from datetime import datetime
 from langchain.llms import LlamaCpp
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from config import LLAMA_MODEL, INTERVIEW_QUESTION_TEMPLATE, ANSWER_EVALUATION_TEMPLATE, FINAL_EVALUATION_TEMPLATE
+from backend.config import LLAMA_MODEL, INTERVIEW_QUESTION_TEMPLATE, ANSWER_EVALUATION_TEMPLATE, FINAL_EVALUATION_TEMPLATE
 
 # Configure logging
 logger = logging.getLogger(__name__)
