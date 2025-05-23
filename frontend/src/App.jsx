@@ -3,6 +3,7 @@ import UserForm from './components/UserForm';
 import InterviewSetup from './components/InterviewSetup';
 import InterviewSession from './components/InterviewSession';
 import FeedbackView from './components/FeedbackView';
+import QueryAssistant from './components/QueryAssistant';
 
 function App() {
   const [currentStep, setCurrentStep] = useState('userForm');
@@ -12,6 +13,7 @@ function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [feedbackData, setFeedbackData] = useState(null);
   const [reportData, setReportData] = useState(null);
+  const [showQueryAssistant, setShowQueryAssistant] = useState(false);
 
   // Handle user form submission
   const handleUserSubmit = (user) => {
@@ -120,8 +122,23 @@ function App() {
         <div className="container">
           <h1 className="display-4">RecruitBot</h1>
           <p className="lead">AI-Powered Interview Evaluation Tool</p>
+          
+          {/* Toggle button for query assistant */}
+          <button 
+            className="btn btn-outline-light mt-2"
+            onClick={() => setShowQueryAssistant(!showQueryAssistant)}
+          >
+            {showQueryAssistant ? 'Hide Interview Assistant' : 'Show Interview Assistant'}
+          </button>
         </div>
       </header>
+      
+      {/* Query Assistant Panel (collapsible) */}
+      {showQueryAssistant && (
+        <div className="container mb-4">
+          <QueryAssistant />
+        </div>
+      )}
       
       {renderCurrentStep()}
       
