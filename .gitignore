@@ -1,0 +1,31 @@
+# Ignore virtual environment directory
+virtualenv/
+venv/
+env/
+.venv/
+
+# Ignore compiled Python files
+*.pyc
+__pycache__/
+
+# Ignore editor/IDE specific files
+.vscode/
+.idea/
+*.swp
+
+# Ignore environment variables file
+.env
+
+# Ignore database file(s)
+*.db
+*.sqlite
+
+# Ignore generated files
+requirements.txt # We will generate this from pyproject.toml
+
+# Ignore macOS specific files
+.DS_Store
+
+# Ignore temp directories
+dbdatatemp/
+instance/ 
