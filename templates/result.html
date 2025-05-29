@@ -13,11 +13,11 @@
                 <!-- Basic information -->
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h4>{{ interview.role }} Position</h4>
+                        <h4>{{ interview.job_profile.title if interview.job_profile }} Position</h4>
                         
-                        {% if interview.result == 'pass' %}
+                        {% if interview.score > 65 %}
                             <span class="badge bg-success fs-5">PASS</span>
-                        {% elif interview.result == 'borderline' %}
+                        {% elif interview.score > 40 %}
                             <span class="badge bg-warning fs-5">BORDERLINE</span>
                         {% else %}
                             <span class="badge bg-danger fs-5">FAIL</span>
@@ -28,10 +28,10 @@
                         Completed on {{ interview.completed_at.strftime('%B %d, %Y at %I:%M %p') if interview.completed_at }}
                     </p>
                     
-                    <div class="progress" style="height: 25px;">
+                    <div class="progress mb-3" style="height: 25px;">
                         <div class="progress-bar 
-                            {% if interview.score >= 70 %}bg-success
-                            {% elif interview.score >= 50 %}bg-warning
+                            {% if interview.score > 65 %}bg-success
+                            {% elif interview.score > 40 %}bg-warning
                             {% else %}bg-danger{% endif %}" 
                             role="progressbar" 
                             style="width: {{ interview.score }}%;"
@@ -40,6 +40,30 @@
                             aria-valuemax="100">
                             {{ "%.1f"|format(interview.score) }}%
                         </div>
+                    </div>
+
+                    <div class="alert 
+                        {% if interview.score > 65 %}alert-success
+                        {% elif interview.score > 40 %}alert-warning
+                        {% else %}alert-danger{% endif %}">
+                        <h5 class="alert-heading">
+                            {% if interview.score > 65 %}
+                                Strong Performance
+                            {% elif interview.score > 40 %}
+                                Moderate Performance
+                            {% else %}
+                                Needs Improvement
+                            {% endif %}
+                        </h5>
+                        <p class="mb-0">
+                            {% if interview.score > 65 %}
+                                The candidate demonstrated strong technical knowledge and problem-solving abilities.
+                            {% elif interview.score > 40 %}
+                                The candidate showed adequate understanding but has room for improvement in some areas.
+                            {% else %}
+                                The candidate needs to strengthen their technical foundation and problem-solving skills.
+                            {% endif %}
+                        </p>
                     </div>
                 </div>
                 

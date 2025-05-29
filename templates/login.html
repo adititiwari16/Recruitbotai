@@ -1,13 +1,17 @@
-{% extends 'layout.html' %}
+{% extends "base.html" %}
 
-{% block title %}Login - RecruitBot{% endblock %}
+{% block title %}Login{% endblock %}
 
 {% block content %}
+<div class="container mt-5">
 <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="row">
+                <!-- Login Form -->
     <div class="col-md-6">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">Login</h3>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="text-center">Login</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('login') }}">
@@ -20,15 +24,45 @@
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-sign-in-alt me-2"></i> Login
-                        </button>
+                                    <button type="submit" class="btn btn-primary">Login</button>
+                                </div>
+                            </form>
+                            
+                            <div class="text-center mt-3">
+                                <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+                            </div>
+                        </div>
                     </div>
-                </form>
-                <hr>
-                <p class="text-center mb-0">
-                    Don't have an account? <a href="{{ url_for('register') }}">Register</a>
-                </p>
+                </div>
+
+                <!-- Role Information -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h3 class="text-center">Choose Your Role</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <h4 class="text-primary">Candidate</h4>
+                                <ul class="list-unstyled">
+                                    <li>✓ Complete your profile</li>
+                                    <li>✓ Take technical interviews</li>
+                                    <li>✓ View your evaluation results</li>
+                                    <li>✓ Track your progress</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="text-primary">Recruiter</h4>
+                                <ul class="list-unstyled">
+                                    <li>✓ View all candidate interviews</li>
+                                    <li>✓ Access evaluation reports</li>
+                                    <li>✓ Monitor candidate performance</li>
+                                    <li>✓ Make hiring decisions</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

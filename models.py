@@ -48,40 +48,34 @@ class Interview(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    role = db.Column(db.String(100), nullable=False)  # e.g., "SDE", "Frontend Developer"
-    experience_level = db.Column(db.String(50), default='mid')  # 'entry', 'mid', 'senior'
-    
-    # Interview status
-    status = db.Column(db.String(20), default='pending')  # 'pending', 'in_progress', 'completed'
-    result = db.Column(db.String(20))  # 'pass', 'borderline', 'fail'
-    
-    # Evaluation data
-    score = db.Column(db.Float)  # Overall score
-    feedback = db.Column(db.Text)  # Summary report with strengths and weaknesses
-    report = db.Column(db.Text)  # Detailed evaluation in markdown
-    
-    # Timestamps
+    job_profile_id = db.Column(db.Integer, db.ForeignKey('job_profiles.id'), nullable=False)
+    experience_level = db.Column(db.String(50), nullable=False)
+    score = db.Column(db.Float, nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
+    feedback = db.Column(db.Text, nullable=True)
+    report = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime, nullable=True)
     
-    # Relationships
+    # Relationship with questions
     questions = db.relationship('Question', backref='interview', lazy=True)
+    
+    def __repr__(self):
+        return f'<Interview {self.id} for User {self.user_id}>'
     
     def to_dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
-            'job_role': self.job_role,
-            'status': self.status,
-            'result': self.result,
+            'job_profile': self.job_profile.to_dict() if self.job_profile else None,
+            'experience_level': self.experience_level,
             'score': self.score,
-            'summary': self.summary,
+            'status': self.status,
+            'feedback': self.feedback,
+            'report': self.report,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
-    
-    def __repr__(self):
-        return f'<Interview {self.id} for User {self.user_id}>'
 
 
 class Question(db.Model):
@@ -124,3 +118,32 @@ class Question(db.Model):
     
     def __repr__(self):
         return f'<Question {self.id} for Interview {self.interview_id}>'
+
+
+class JobProfile(db.Model):
+    __tablename__ = 'job_profiles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(120), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    evaluation_criteria = db.Column(db.JSON, nullable=False)  # Stores evaluation parameters
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship with interviews
+    interviews = db.relationship('Interview', backref='job_profile', lazy=True)
+    
+    def __repr__(self):
+        return f'<JobProfile {self.title}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'evaluation_criteria': self.evaluation_criteria,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

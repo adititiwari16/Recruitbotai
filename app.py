@@ -3,13 +3,20 @@ import json
 import logging
 from datetime import datetime, timedelta
 from functools import wraps
+from dotenv import load_dotenv
+import re
 
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from models import db, User, Interview, Question
+from models import db, User, Interview, Question, JobProfile
+from backend.ollama_client import get_ollama_client
+from backend.utils import evaluate_answer
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,13 +24,15 @@ logger = logging.getLogger(__name__)
 
 # Initialize the app
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+
+# Use DATABASE_URL from .env for Supabase Postgres
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     'pool_pre_ping': True,
     "pool_recycle": 300,
 }
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
+app.secret_key = os.getenv("SESSION_SECRET", "dev-secret-key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Enable CORS for frontend compatibility
@@ -136,9 +145,15 @@ def register():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        role = request.form.get('role')
         
-        if not email or not password:
-            flash('Email and password are required.', 'danger')
+        if not email or not password or not role:
+            flash('All fields are required.', 'danger')
+            return render_template('register.html')
+            
+        # Validate role
+        if role not in ['candidate', 'recruiter']:
+            flash('Invalid role selected.', 'danger')
             return render_template('register.html')
             
         # Check if user already exists
@@ -147,8 +162,12 @@ def register():
             flash('Email already registered.', 'danger')
             return render_template('register.html')
             
-        # Create new user
-        new_user = User(email=email)
+        # Create new user with specified role
+        new_user = User(
+            email=email,
+            role=role,
+            name=email.split('@')[0]  # Set initial name from email
+        )
         new_user.set_password(password)
         
         db.session.add(new_user)
@@ -229,7 +248,9 @@ def profile():
 @app.route('/interview/setup', methods=['GET', 'POST'])
 @login_required
 def interview_setup():
-    if current_user.role == 'recruiter':
+    # Check if user is a candidate
+    if current_user.role != 'candidate':
+        flash('Only candidates can access the interview setup page.', 'error')
         return redirect(url_for('dashboard'))
         
     # Check if user has completed profile
@@ -238,16 +259,22 @@ def interview_setup():
         return redirect(url_for('profile'))
         
     if request.method == 'POST':
-        job_role = request.form.get('job_role')
+        job_profile_id = request.form.get('job_profile_id')
         
-        if not job_role or job_role not in JOB_ROLES:
-            flash('Please select a valid job role.', 'danger')
-            return render_template('interview_setup.html', job_roles=JOB_ROLES)
+        if not job_profile_id:
+            flash('Please select a job profile.', 'danger')
+            return redirect(url_for('interview_setup'))
+            
+        # Get the job profile
+        job_profile = JobProfile.query.get(job_profile_id)
+        if not job_profile or not job_profile.is_active:
+            flash('Selected job profile is not available.', 'danger')
+            return redirect(url_for('interview_setup'))
             
         # Create new interview
         interview = Interview(
             user_id=current_user.id,
-            role=JOB_ROLES[job_role],
+            job_profile_id=job_profile.id,
             experience_level='mid',
             status='in_progress'
         )
@@ -257,14 +284,16 @@ def interview_setup():
         
         return redirect(url_for('interview_session', interview_id=interview.id))
         
-    return render_template('interview_setup.html', job_roles=JOB_ROLES)
+    # Get all active job profiles
+    job_profiles = JobProfile.query.filter_by(is_active=True).order_by(JobProfile.title).all()
+    return render_template('interview_setup.html', job_profiles=job_profiles)
 
 @app.route('/interview/<int:interview_id>', methods=['GET'])
 @login_required
 def interview_session(interview_id):
     interview = Interview.query.get_or_404(interview_id)
     
-    # Security check
+    # Security check - allow both the candidate and recruiters to access
     if interview.user_id != current_user.id and current_user.role != 'recruiter':
         flash('You do not have permission to access this interview.', 'danger')
         return redirect(url_for('index'))
@@ -276,8 +305,8 @@ def interview_session(interview_id):
 def interview_chat(interview_id):
     interview = Interview.query.get_or_404(interview_id)
     
-    # Security check
-    if interview.user_id != current_user.id:
+    # Security check - allow both the candidate and recruiters to access
+    if interview.user_id != current_user.id and current_user.role != 'recruiter':
         return jsonify({'error': 'Unauthorized'}), 403
         
     # Get message from request
@@ -287,13 +316,50 @@ def interview_chat(interview_id):
         
     user_message = data['message']
     
-    # Process the message and generate a response
-    # This is where you would integrate with an LLM like OpenAI
-    # For now, we'll use a simple response system
-    
-    # Sample response for demonstration
+    # Find the question with the highest order for this interview that doesn't have an answer yet
+    # This assumes the user is answering questions in sequential order.
+    question_to_answer = Question.query.filter_by(interview_id=interview.id, answer=None).order_by(Question.order.desc()).first()
+
+    if question_to_answer:
+        question_to_answer.answer = user_message
+        question_to_answer.answered_at = datetime.utcnow()
+
+        # Get user details for evaluation context
+        user = User.query.get(interview.user_id)
+
+        # Evaluate the answer using the imported function
+        # Ensure job_profile relationship is loaded or accessed correctly
+        job_profile_title = interview.job_profile.title if interview.job_profile else ''
+
+        evaluation = evaluate_answer(
+            question=question_to_answer.text,
+            answer=user_message,
+            role=job_profile_title, # Use job profile title as role for evaluation context
+            experience=user.experience or 'mid' # Use user experience or default to 'mid'
+        )
+
+        # Update question with score and feedback from evaluation
+        if isinstance(evaluation, dict) and "error" not in evaluation:
+            # evaluate_answer in backend.utils returns a score out of 10
+            question_to_answer.score = evaluation.get('score', 0)
+            question_to_answer.feedback = json.dumps(evaluation) # Store full evaluation feedback as JSON
+        else:
+            # Log error if evaluation failed and set default score/feedback
+            logger.error(f"Failed to evaluate answer for question {question_to_answer.id}: {evaluation.get('error', 'Unknown error')}")
+            question_to_answer.score = 0
+            question_to_answer.feedback = json.dumps({'error': 'Evaluation failed'})
+
+        db.session.commit()
+        logger.debug(f"Successfully saved answer and evaluation for Question ID: {question_to_answer.id}, Score: {question_to_answer.score}")
+
+    # Now, generate the AI's response (which is either the next question or a completion message)
+    # This should happen regardless of whether an answer was saved/evaluated, to keep the chat flow going.
     response = generate_interview_response(interview, user_message)
-    
+
+    # If generate_interview_response created a new question, commit that change as well
+    # (though generate_interview_response already commits, being explicit here doesn't hurt)
+    db.session.commit()
+
     return jsonify({
         'response': response
     })
@@ -303,7 +369,7 @@ def interview_chat(interview_id):
 def complete_interview(interview_id):
     interview = Interview.query.get_or_404(interview_id)
     
-    # Security check
+    # Security check - only allow the candidate to complete their own interview
     if interview.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
         
@@ -311,7 +377,7 @@ def complete_interview(interview_id):
     interview.status = 'completed'
     interview.completed_at = datetime.utcnow()
     
-    # Generate evaluation (this would use the LLM in production)
+    # Generate evaluation
     evaluation = generate_evaluation_report(interview)
     interview.report = evaluation['report']
     interview.feedback = evaluation['summary']
@@ -330,7 +396,7 @@ def complete_interview(interview_id):
 def interview_result(interview_id):
     interview = Interview.query.get_or_404(interview_id)
     
-    # Security check
+    # Security check - allow both the candidate and recruiters to view results
     if interview.user_id != current_user.id and current_user.role != 'recruiter':
         flash('You do not have permission to access this interview.', 'danger')
         return redirect(url_for('index'))
@@ -390,6 +456,116 @@ def ask_question():
     except Exception as e:
         logger.error(f"Error in ask_question: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/dashboard/job-profiles', methods=['GET'])
+@login_required
+@admin_required
+def job_profiles():
+    """View and manage job profiles."""
+    profiles = JobProfile.query.order_by(JobProfile.title).all()
+    return render_template('job_profiles.html', profiles=profiles)
+
+@app.route('/dashboard/job-profiles/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_job_profile():
+    """Add a new job profile."""
+    if request.method == 'POST':
+        try:
+            data = request.form
+            
+            # Create new job profile
+            profile = JobProfile(
+                title=data['title'],
+                description=data['description'],
+                evaluation_criteria={
+                    'technical_skills': data.getlist('technical_skills'),
+                    'soft_skills': data.getlist('soft_skills'),
+                    'experience_requirements': data.get('experience_requirements'),
+                    'evaluation_focus': data.get('evaluation_focus'),
+                    'custom_prompt': data.get('custom_prompt')
+                }
+            )
+            
+            db.session.add(profile)
+            db.session.commit()
+            
+            flash('Job profile added successfully!', 'success')
+            return redirect(url_for('job_profiles'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding job profile: {str(e)}', 'danger')
+            
+    return render_template('add_job_profile.html')
+
+@app.route('/dashboard/job-profiles/<int:profile_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_job_profile(profile_id):
+    """Edit an existing job profile."""
+    profile = JobProfile.query.get_or_404(profile_id)
+    
+    if request.method == 'POST':
+        try:
+            data = request.form
+            
+            # Update profile
+            profile.title = data['title']
+            profile.description = data['description']
+            profile.evaluation_criteria = {
+                'technical_skills': data.getlist('technical_skills'),
+                'soft_skills': data.getlist('soft_skills'),
+                'experience_requirements': data.get('experience_requirements'),
+                'evaluation_focus': data.get('evaluation_focus'),
+                'custom_prompt': data.get('custom_prompt')
+            }
+            
+            db.session.commit()
+            
+            flash('Job profile updated successfully!', 'success')
+            return redirect(url_for('job_profiles'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating job profile: {str(e)}', 'danger')
+            
+    return render_template('edit_job_profile.html', profile=profile)
+
+@app.route('/dashboard/job-profiles/<int:profile_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_job_profile(profile_id):
+    """Delete a job profile."""
+    profile = JobProfile.query.get_or_404(profile_id)
+    
+    try:
+        db.session.delete(profile)
+        db.session.commit()
+        flash('Job profile deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting job profile: {str(e)}', 'danger')
+        
+    return redirect(url_for('job_profiles'))
+
+@app.route('/dashboard/job-profiles/<int:profile_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def toggle_job_profile(profile_id):
+    """Toggle job profile active status."""
+    profile = JobProfile.query.get_or_404(profile_id)
+    
+    try:
+        profile.is_active = not profile.is_active
+        db.session.commit()
+        status = 'activated' if profile.is_active else 'deactivated'
+        flash(f'Job profile {status} successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating job profile status: {str(e)}', 'danger')
+        
+    return redirect(url_for('job_profiles'))
 
 # Helper functions
 def generate_sample_response(query, context=""):
@@ -520,119 +696,256 @@ Would you like more specific information about any aspect of the interview proce
 """
 
 def generate_interview_response(interview, user_message):
-    """Generate a response for the interview chatbot."""
-    # This would be connected to an LLM in production
-    
-    # For demo, we'll use predefined questions
-    questions = [
-        "Explain the difference between a stack and a queue. What are their time complexities for basic operations?",
-        "What is the time complexity of binary search? Describe how it works.",
-        "Explain the concept of inheritance in OOP. Provide an example.",
-        "What is polymorphism? How is it implemented in your preferred programming language?",
-        "Describe the TCP/IP model and its layers.",
-        "Explain the difference between TCP and UDP.",
-        "What is a deadlock in an operating system? How can it be prevented?",
-        "Explain the concept of virtual memory.",
-        "Write a function to determine if a string has all unique characters.",
-        "Implement a solution to find the nth Fibonacci number using dynamic programming."
-    ]
-    
-    # Get existing questions for this interview
-    existing_questions = Question.query.filter_by(interview_id=interview.id).count()
-    
-    if existing_questions < len(questions):
-        # Create a new question
-        new_question = Question(
-            interview_id=interview.id,
-            text=questions[existing_questions],
-            category="Technical",
-            type=["mcq", "concept", "coding"][min(existing_questions // 4, 2)],
-            order=existing_questions + 1
-        )
-        
-        db.session.add(new_question)
-        db.session.commit()
-        
-        return new_question.text
-    else:
-        # Interview is complete
-        return "Thank you for completing all the questions. I'll now generate your evaluation report. Please click the 'Complete Interview' button to see your results."
+    """Generate a response for the interview chatbot using Ollama."""
+    try:
+        # Get the job profile
+        job_profile = JobProfile.query.get(interview.job_profile_id)
+        if not job_profile:
+            return "Error: Job profile not found."
+
+        # Get existing questions for this interview
+        existing_questions = Question.query.filter_by(interview_id=interview.id).count()
+
+        # If we haven't asked any questions yet, generate the first question
+        if existing_questions == 0:
+            # Get user details for context
+            user = User.query.get(interview.user_id)
+
+            # Prepare the prompt for the first question
+            prompt = f"""You are a technical interviewer conducting an interview for a {job_profile.title} position.
+            The candidate has {user.experience} years of experience.
+            
+            Job Profile Details:
+            - Description: {job_profile.description}
+            - Technical Skills Required: {', '.join(job_profile.evaluation_criteria['technical_skills'])}
+            - Soft Skills Required: {', '.join(job_profile.evaluation_criteria['soft_skills'])}
+            - Experience Requirements: {job_profile.evaluation_criteria['experience_requirements']}
+            - Evaluation Focus: {job_profile.evaluation_criteria['evaluation_focus']}
+            
+            Custom Evaluation Instructions:
+            {job_profile.evaluation_criteria['custom_prompt']}
+            
+            Generate a technical question that is appropriate for their experience level.
+            The question should be challenging but fair.
+            Focus on the technical skills required for this position.
+            Return ONLY the question text, nothing else."""
+
+            # Get response from Ollama
+            ollama = get_ollama_client()
+            result = ollama.generate_response(prompt)
+
+            if not result["success"]:
+                return "I apologize, but I'm having trouble generating questions at the moment. Please try again."
+
+            # Create a new question
+            new_question = Question(
+                interview_id=interview.id,
+                text=result["response"].strip(),
+                category="Technical",
+                type="concept",
+                order=1
+            )
+
+            db.session.add(new_question)
+            db.session.commit()
+
+            return new_question.text
+
+        # If we have questions, evaluate the user's response and generate next question
+        elif existing_questions < 10:  # Limit to 10 questions
+            # Get the last question
+            last_question = Question.query.filter_by(interview_id=interview.id).order_by(Question.order.desc()).first()
+
+            # Save the user's answer to the last question
+            if last_question:
+                last_question.answer = user_message
+                last_question.answered_at = datetime.utcnow()
+                # Optionally, you could call an evaluation function here and save feedback/score per question
+                db.session.commit()
+                logger.debug(f"Saved answer for question {last_question.id} in generate_interview_response.")
+
+            # Prepare the prompt for evaluation and next question
+            prompt = f"""You are a technical interviewer evaluating a candidate for a {job_profile.title} position.
+
+            Job Profile Details:
+            - Description: {job_profile.description}
+            - Technical Skills Required: {', '.join(job_profile.evaluation_criteria['technical_skills'])}
+            - Soft Skills Required: {', '.join(job_profile.evaluation_criteria['soft_skills'])}
+            - Experience Requirements: {job_profile.evaluation_criteria['experience_requirements']}
+            - Evaluation Focus: {job_profile.evaluation_criteria['evaluation_focus']}
+
+            Custom Evaluation Instructions:
+            {job_profile.evaluation_criteria['custom_prompt']}
+
+            The candidate just answered this question:
+            "{last_question.text}"
+
+            Their answer was: "{user_message}"
+
+            Based on their answer and the job requirements, generate a follow-up technical question that:
+            1. Is more challenging if they answered well
+            2. Is at the same level if they answered partially
+            3. Is slightly easier if they struggled
+            4. Covers a different technical skill from the required skills list
+
+            Return ONLY the question text, nothing else."""
+
+            # Get response from Ollama
+            ollama = get_ollama_client()
+            result = ollama.generate_response(prompt)
+
+            if not result["success"]:
+                return "I apologize, but I'm having trouble generating questions at the moment. Please try again."
+
+            # Create a new question
+            new_question = Question(
+                interview_id=interview.id,
+                text=result["response"].strip(),
+                category="Technical",
+                type=["mcq", "concept", "coding"][min(existing_questions // 4, 2)],
+                order=existing_questions + 1
+            )
+
+            db.session.add(new_question)
+            db.session.commit()
+
+            return new_question.text
+
+        else: # Interview is complete
+            return "Thank you for completing all the questions. I'll now generate your evaluation report. Please click the 'Complete Interview' button to see your results."
+
+    except Exception as e:
+        logger.error(f"Error in generate_interview_response: {str(e)}")
+        return "I apologize, but I encountered an error. Please try again."
 
 def generate_evaluation_report(interview):
-    """Generate an evaluation report for the completed interview."""
-    # In production, this would use an LLM to evaluate the answers
-    
-    # For demo, we'll use a random score
-    import random
-    score = random.uniform(0.4, 0.95)
-    
-    # Determine result based on score
-    if score >= 0.7:
-        result = "pass"
-    elif score >= 0.5:
-        result = "borderline"
-    else:
-        result = "fail"
-    
-    # Generate a report
-    report = f"""# Technical Interview Evaluation
+    """Generate an evaluation report for the completed interview using Ollama."""
+    try:
+        # Get user details
+        user = User.query.get(interview.user_id)
+        if not user:
+            logger.error(f"User not found for interview {interview.id}")
+            return {
+                'report': "Error: User not found.",
+                'summary': "Error: User not found.",
+                'result': "error",
+                'score': 0
+            }
 
-## Candidate Information
-- **Name**: {User.query.get(interview.user_id).name}
-- **Experience**: {User.query.get(interview.user_id).experience} years
-- **Position Applied**: {interview.job_role}
-- **Date**: {interview.created_at.strftime('%Y-%m-%d')}
+        # Get the job profile
+        job_profile = JobProfile.query.get(interview.job_profile_id)
+        if not job_profile:
+            logger.error(f"Job profile not found for interview {interview.id}")
+            return {
+                'report': "Error: Job profile not found.",
+                'summary': "Error: Job profile not found.",
+                'result': "error",
+                'score': 0
+            }
 
-## Assessment Summary
-- **Overall Score**: {score*100:.1f}%
-- **Result**: {"PASS" if result == "pass" else "BORDERLINE" if result == "borderline" else "FAIL"}
+        # Get all questions and answers
+        questions = Question.query.filter_by(interview_id=interview.id).order_by(Question.order).all()
+        if not questions:
+            logger.error(f"No questions found for interview {interview.id}")
+            return {
+                'report': "Error: No interview questions found.",
+                'summary': "Error: No interview questions found.",
+                'result': "error",
+                'score': 0
+            }
 
-## Performance by Area
-- **Data Structures & Algorithms**: {"Strong" if score > 0.7 else "Average" if score > 0.5 else "Needs Improvement"}
-- **Object-Oriented Programming**: {"Strong" if score > 0.7 else "Average" if score > 0.5 else "Needs Improvement"}
-- **Networking & Protocols**: {"Strong" if score > 0.7 else "Average" if score > 0.5 else "Needs Improvement"}
-- **Operating Systems**: {"Strong" if score > 0.7 else "Average" if score > 0.5 else "Needs Improvement"}
-- **Coding Skills**: {"Strong" if score > 0.7 else "Average" if score > 0.5 else "Needs Improvement"}
+        # Prepare the prompt for evaluation
+        questions_text = "\n".join([f"Q{i+1}: {q.text}\nA{i+1}: {q.answer or 'No answer provided'}\n" for i, q in enumerate(questions)])
 
-## Strengths
-- {"Strong understanding of core algorithms and data structures" if score > 0.6 else "Demonstrated basic knowledge of algorithms"}
-- {"Excellent problem-solving approach" if score > 0.7 else "Reasonable problem-solving abilities"}
-- {"Good coding practices" if score > 0.6 else "Basic coding competence"}
+        prompt = f"""You are a technical interviewer evaluating a candidate's performance.
 
-## Areas for Improvement
-- {"Could improve on time and space complexity analysis" if score < 0.8 else "Minor improvements in efficiency considerations"}
-- {"Should strengthen understanding of " + ["operating systems", "network protocols", "OOP principles"][random.randint(0, 2)]}
-- {"Work on more complex coding challenges" if score < 0.9 else "Practice edge cases in coding problems"}
+Candidate Information:
+- Name: {user.name}
+- Experience: {user.experience} years
+- Position: {job_profile.title}
 
-## Recommendation
-{
-"The candidate demonstrated strong technical knowledge and problem-solving abilities. Recommended for the next round." if result == "pass" else
-"The candidate shows potential but has some gaps in knowledge. Consider for a lower-level position or provide a chance to reapply after additional preparation." if result == "borderline" else
-"The candidate does not meet the technical requirements for this position at this time. Suggest gaining more experience before reapplying."
-}
+Job Profile Requirements:
+- Description: {job_profile.description}
+- Technical Skills Required: {', '.join(job_profile.evaluation_criteria['technical_skills'])}
+- Soft Skills Required: {', '.join(job_profile.evaluation_criteria['soft_skills'])}
+- Experience Requirements: {job_profile.evaluation_criteria['experience_requirements']}
+- Evaluation Focus: {job_profile.evaluation_criteria['evaluation_focus']}
 
-*This evaluation is based on a standardized technical assessment.*
-"""
-    
-    # Generate a shorter summary
-    summary = f"""## Assessment Summary
-- **Score**: {score*100:.1f}%
-- **Result**: {"PASS" if result == "pass" else "BORDERLINE" if result == "borderline" else "FAIL"}
-- **Strengths**: {"Strong in algorithms and problem-solving" if score > 0.7 else "Basic technical competence"}
-- **Areas for Improvement**: {"Minor efficiency considerations" if score > 0.8 else "Fundamental knowledge gaps in key areas"}
-"""
-    
-    return {
-        'report': report,
-        'summary': summary,
-        'result': result,
-        'score': score * 100
-    }
+Custom Evaluation Instructions:
+{job_profile.evaluation_criteria['custom_prompt']}
 
-# Create all tables
+Interview Questions and Answers:
+{questions_text}
+
+Based on the candidate's responses and the job requirements, generate a detailed evaluation report in markdown format that includes:
+1. Overall assessment
+2. Technical skills evaluation (based on required technical skills)
+3. Soft skills evaluation (based on required soft skills)
+4. Strengths and weaknesses
+5. Final recommendation (Pass/Borderline/Fail)
+
+Format the response in markdown with appropriate headers and sections."""
+
+        # Get response from Ollama
+        ollama = get_ollama_client()
+        result = ollama.generate_response(prompt)
+
+        if not result["success"]:
+            error_msg = result.get("error", "Unknown error")
+            logger.error(f"Failed to generate evaluation report: {error_msg}")
+            return {
+                'report': f"Error generating evaluation report: {error_msg}",
+                'summary': f"Error generating evaluation report: {error_msg}",
+                'result': "error",
+                'score': 0
+            }
+
+        # Parse the response to extract score and result
+        report_text = result["response"]
+
+        # Calculate score based on answers
+        answered = sum(1 for q in questions if q.answer and q.answer.strip())
+        score = round((answered / len(questions)) * 100) if questions else 0
+
+        # Set result based on score thresholds only
+        if score >= 70:
+            result_value = 'pass'
+        elif score >= 50:
+            result_value = 'borderline'
+        else:
+            result_value = 'fail'
+
+        # Generate a shorter summary
+        try:
+            strengths = report_text.split("Strengths")[1].split("Areas for Improvement")[0] if "Strengths" in report_text else "Not specified"
+            improvements = report_text.split("Areas for Improvement")[1].split("Recommendation")[0] if "Areas for Improvement" in report_text else "Not specified"
+        except Exception as e:
+            logger.error(f"Error parsing report sections: {str(e)}")
+            strengths = "Not specified"
+            improvements = "Not specified"
+
+        summary = f"""## Assessment Summary\n- **Score**: {score}%\n- **Result**: {result_value.upper()}\n- **Strengths**: {strengths}\n- **Areas for Improvement**: {improvements}\n"""
+
+        return {
+            'report': report_text,
+            'summary': summary,
+            'result': result_value,  # This will be used for the UI badge
+            'score': score
+        }
+
+    except Exception as e:
+        logger.error(f"Error in generate_evaluation_report: {str(e)}")
+        return {
+            'report': f"Error generating evaluation report: {str(e)}",
+            'summary': f"Error generating evaluation report: {str(e)}",
+            'result': "error",
+            'score': 0
+        }
+
+# Create all tables (do NOT drop tables in production)
 with app.app_context():
+    # db.drop_all()  # DO NOT DROP TABLES IN PRODUCTION
     db.create_all()
-    
     # Create a recruiter user if none exists
     recruiter = User.query.filter_by(role='recruiter').first()
     if not recruiter:
@@ -647,4 +960,4 @@ with app.app_context():
         logger.info("Created recruiter user")
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

@@ -167,6 +167,14 @@ def complete_interview(interview_id):
         avg_score = total_score / len(questions) if questions else 0
         normalized_score = min(100, avg_score * 10)  # Scale to 100
         
+        # Set result based on score thresholds
+        if normalized_score >= 70:
+            result_value = 'pass'
+        elif normalized_score >= 50:
+            result_value = 'borderline'
+        else:
+            result_value = 'fail'
+        
         # Generate final report
         report = generate_final_report(
             name=user.name,
@@ -181,13 +189,15 @@ def complete_interview(interview_id):
         
         # Update interview
         interview.score = normalized_score
-        interview.status = 'completed' if normalized_score >= 70 else 'failed'
+        interview.status = 'completed'  # Always set to completed since we have a separate result field
+        interview.result = result_value  # Set the result based on score thresholds
         interview.feedback = report
         interview.report = format_markdown_report(
             interview_data={
                 'role': interview.role,
                 'score': normalized_score,
                 'status': interview.status,
+                'result': result_value,  # Include result in the report data
                 'feedback': report
             },
             user_data=user.to_dict(),
@@ -202,6 +212,7 @@ def complete_interview(interview_id):
             "interview": interview.to_dict(),
             "score": normalized_score,
             "status": interview.status,
+            "result": result_value,
             "report": interview.report
         }), 200
         
